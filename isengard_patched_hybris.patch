@@ -1,6 +1,6 @@
 diff -rupN xbmc-master/configure.ac isengard/configure.ac
---- xbmc-master/configure.ac	2015-06-09 04:52:13.000000000 +1000
-+++ isengard/configure.ac	2015-06-09 13:48:16.309052544 +1000
+--- xbmc-master/configure.ac	2015-06-30 04:17:51.000000000 +1000
++++ isengard/configure.ac	2015-06-30 15:49:00.393720991 +1000
 @@ -232,6 +232,11 @@ libusb_disabled_udev_found="== libusb di
  libcec_enabled="== libcec enabled. =="
  libcec_disabled="== libcec disabled. CEC adapter support will not be available. =="
@@ -88,7 +88,7 @@ diff -rupN xbmc-master/configure.ac isengard/configure.ac
  ### External libraries messages
  
  if test "$host_vendor" = "apple" ; then
-@@ -2641,6 +2684,7 @@ AC_SUBST(USE_SSE4)
+@@ -2642,6 +2685,7 @@ AC_SUBST(USE_SSE4)
  AC_SUBST(USE_MMAL)
  AC_SUBST(USE_X11)
  AC_SUBST(USE_BREAKPAD)
@@ -97,38 +97,28 @@ diff -rupN xbmc-master/configure.ac isengard/configure.ac
  # pushd and popd are not available in other shells besides bash, so implement
  # our own pushd/popd functions
 diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp isengard/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp
---- xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp	2015-06-09 04:52:13.000000000 +1000
-+++ isengard/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp	2015-06-09 14:19:35.330911514 +1000
-@@ -56,7 +56,9 @@
- #include "Overlay/DVDOverlayCodecText.h"
+--- xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp	2015-06-30 04:17:51.000000000 +1000
++++ isengard/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp	2015-06-30 15:52:48.855880100 +1000
+@@ -57,6 +57,9 @@
  #include "Overlay/DVDOverlayCodecTX3G.h"
  #include "Overlay/DVDOverlayCodecFFmpeg.h"
--
+ 
 +#if defined(HAS_MFC)
 +#include "Video/DVDVideoCodecMFC.h"
 +#endif
  
  #include "DVDStreamInfo.h"
  #include "settings/AdvancedSettings.h"
-@@ -199,7 +201,13 @@ CDVDVideoCodec* CDVDFactoryCodec::Create
+@@ -199,6 +202,20 @@ CDVDVideoCodec* CDVDFactoryCodec::Create
  #else
    hwSupport += "MMAL:no ";
  #endif
--  CLog::Log(LOGDEBUG, "CDVDFactoryCodec: compiled in hardware support: %s", hwSupport.c_str());
 +#if defined(HAS_MFC) && defined(_LINUX)
 +  hwSupport += "MFC:yes ";
 +#elif defined(_LINUX)
 +  hwSupport += "MFC:no ";
 +#endif
 +
--  CLog::Log(LOGDEBUG, "CDVDFactoryCodec: compiled in hardware support: %s", hwSupport.c_str());
- 
-   if (hint.stills && (hint.codec == AV_CODEC_ID_MPEG2VIDEO || hint.codec == AV_CODEC_ID_MPEG1VIDEO))
-   {
-@@ -207,6 +215,16 @@ CDVDVideoCodec* CDVDFactoryCodec::Create
-      if ( (pCodec = OpenCodec(new CDVDVideoCodecLibMpeg2(), hint, options)) ) return pCodec;
-   }
- 
 +#if defined(HAS_MFC)
 +    if ( !hint.software )
 +    {
@@ -137,12 +127,12 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/DVDFactoryCodec.cpp isenga
 +    }
 +#endif
 +
- #if defined(HAS_LIBAMCODEC)
-   // amcodec can handle dvd playback.
-   if (!hint.software && CSettings::Get().GetBool("videoplayer.useamcodec"))
+   CLog::Log(LOGDEBUG, "CDVDFactoryCodec: compiled in hardware support: %s", hwSupport.c_str());
+ 
+   if (hint.stills && (hint.codec == AV_CODEC_ID_MPEG2VIDEO || hint.codec == AV_CODEC_ID_MPEG1VIDEO))
 diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp
 --- xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp	1970-01-01 10:00:00.000000000 +1000
-+++ isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp	2015-06-09 13:48:16.334052544 +1000
++++ isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp	2015-06-30 15:49:00.403720991 +1000
 @@ -0,0 +1,755 @@
 +/*
 + *      Copyright (C) 2005-2012 Team XBMC
@@ -179,7 +169,7 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp
 +#include "settings/Settings.h"
 +#include "settings/DisplaySettings.h"
 +#include "settings/AdvancedSettings.h"
-+#include "utils/fastmemcpy.h"
++//#include "utils/fastmemcpy.h"
 +
 +#include <sys/mman.h>
 +#include <sys/ioctl.h>
@@ -452,7 +442,7 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp
 +
 +  // Prepare header
 +  m_v4l2MFCOutputBuffers[0].iBytesUsed[0] = extraSize;
-+  fast_memcpy((uint8_t *)m_v4l2MFCOutputBuffers[0].cPlane[0], extraData, extraSize);
++  memcpy((uint8_t *)m_v4l2MFCOutputBuffers[0].cPlane[0], extraData, extraSize);
 +
 +  // Queue header to MFC OUTPUT queue
 +  ret = CLinuxV4l2::QueueBuffer(m_iDecoderHandle, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, V4L2_MEMORY_MMAP, &m_v4l2MFCOutputBuffers[0]);
@@ -761,7 +751,7 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp
 +    }
 +
 +    m_v4l2MFCOutputBuffers[index].iBytesUsed[0] = (demuxer_bytes < m_v4l2MFCOutputBuffers[index].iSize[0]) ? demuxer_bytes : m_v4l2MFCOutputBuffers[index].iSize[0];
-+    fast_memcpy((uint8_t *)m_v4l2MFCOutputBuffers[index].cPlane[0], demuxer_content, m_v4l2MFCOutputBuffers[index].iBytesUsed[0]);
++    memcpy((uint8_t *)m_v4l2MFCOutputBuffers[index].cPlane[0], demuxer_content, m_v4l2MFCOutputBuffers[index].iBytesUsed[0]);
 +    m_v4l2MFCOutputBuffers[index].timestamp = pts;
 +    ret = CLinuxV4l2::QueueBuffer(m_iDecoderHandle, V4L2_BUF_TYPE_VIDEO_OUTPUT_MPLANE, V4L2_MEMORY_MMAP, &m_v4l2MFCOutputBuffers[index]);
 +    if (ret == V4L2_ERROR) {
@@ -884,7 +874,7 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp
 +  else if (( int) (ctime - dtime) > 2000) {
 +	 CLog::Log(LOGDEBUG, "%s::%s - GetPicture dtime = %d, ctime = %d, sec= %d, reset = %d ", CLASSNAME, __func__,dtime, ctime, sec, m_reset);
 +	dtime = ctime;
-+#	if( sec < 30 ) m_reset = 1;; // if the average for the last 2 seconds is less than 30 frames, Reset
++//	if( sec < 30 ) m_reset = 1;; // if the average for the last 2 seconds is less than 30 frames, Reset
 +	sec = 0;
 +  }
 +  sec++;
@@ -901,7 +891,7 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.cpp
 +}
 diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.h isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.h
 --- xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.h	1970-01-01 10:00:00.000000000 +1000
-+++ isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.h	2015-06-09 13:48:16.334052544 +1000
++++ isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.h	2015-06-30 15:49:00.408720991 +1000
 @@ -0,0 +1,83 @@
 +#pragma once
 +
@@ -987,8 +977,8 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/DVDVideoCodecMFC.h i
 +  bool OpenDevices();
 +};
 diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in
---- xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in	2015-06-09 04:52:13.000000000 +1000
-+++ isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in	2015-06-09 13:48:16.334052544 +1000
+--- xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in	2015-06-30 04:17:51.000000000 +1000
++++ isengard/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in	2015-06-30 15:49:00.408720991 +1000
 @@ -41,6 +41,11 @@ ifeq (@USE_MMAL@,1)
  SRCS += MMALCodec.cpp
  endif
@@ -1003,7 +993,7 @@ diff -rupN xbmc-master/xbmc/cores/dvdplayer/DVDCodecs/Video/Makefile.in isengard
  include @abs_top_srcdir@/Makefile.include
 diff -rupN xbmc-master/xbmc/linux/LinuxV4l2.cpp isengard/xbmc/linux/LinuxV4l2.cpp
 --- xbmc-master/xbmc/linux/LinuxV4l2.cpp	1970-01-01 10:00:00.000000000 +1000
-+++ isengard/xbmc/linux/LinuxV4l2.cpp	2015-06-09 13:48:16.314052544 +1000
++++ isengard/xbmc/linux/LinuxV4l2.cpp	2015-06-30 15:49:00.408720991 +1000
 @@ -0,0 +1,314 @@
 +/*
 + *      Copyright (C) 2005-2012 Team XBMC
@@ -1321,7 +1311,7 @@ diff -rupN xbmc-master/xbmc/linux/LinuxV4l2.cpp isengard/xbmc/linux/LinuxV4l2.cp
 +}
 diff -rupN xbmc-master/xbmc/linux/LinuxV4l2.h isengard/xbmc/linux/LinuxV4l2.h
 --- xbmc-master/xbmc/linux/LinuxV4l2.h	1970-01-01 10:00:00.000000000 +1000
-+++ isengard/xbmc/linux/LinuxV4l2.h	2015-06-09 13:48:16.314052544 +1000
++++ isengard/xbmc/linux/LinuxV4l2.h	2015-06-30 15:49:00.408720991 +1000
 @@ -0,0 +1,77 @@
 +#pragma once
 +
@@ -1401,8 +1391,8 @@ diff -rupN xbmc-master/xbmc/linux/LinuxV4l2.h isengard/xbmc/linux/LinuxV4l2.h
 +  return ((v + a - 1) / a) * a;
 +}
 diff -rupN xbmc-master/xbmc/linux/Makefile.in isengard/xbmc/linux/Makefile.in
---- xbmc-master/xbmc/linux/Makefile.in	2015-06-09 04:52:13.000000000 +1000
-+++ isengard/xbmc/linux/Makefile.in	2015-06-09 13:48:16.314052544 +1000
+--- xbmc-master/xbmc/linux/Makefile.in	2015-06-30 04:17:51.000000000 +1000
++++ isengard/xbmc/linux/Makefile.in	2015-06-30 15:49:00.408720991 +1000
 @@ -12,6 +12,7 @@ SRCS += XFileUtils.cpp
  SRCS += XHandle.cpp
  SRCS += XMemUtils.cpp
@@ -1413,7 +1403,7 @@ diff -rupN xbmc-master/xbmc/linux/Makefile.in isengard/xbmc/linux/Makefile.in
  
 diff -rupN xbmc-master/xbmc/windowing/egl/EGLNativeTypeHybris.cpp isengard/xbmc/windowing/egl/EGLNativeTypeHybris.cpp
 --- xbmc-master/xbmc/windowing/egl/EGLNativeTypeHybris.cpp	1970-01-01 10:00:00.000000000 +1000
-+++ isengard/xbmc/windowing/egl/EGLNativeTypeHybris.cpp	2015-06-09 13:48:16.319052544 +1000
++++ isengard/xbmc/windowing/egl/EGLNativeTypeHybris.cpp	2015-06-30 15:49:00.413720991 +1000
 @@ -0,0 +1,341 @@
 +/*
 + *      Copyright (C) 2011-2012 Team XBMC
@@ -1758,7 +1748,7 @@ diff -rupN xbmc-master/xbmc/windowing/egl/EGLNativeTypeHybris.cpp isengard/xbmc/
 +}
 diff -rupN xbmc-master/xbmc/windowing/egl/EGLNativeTypeHybris.h isengard/xbmc/windowing/egl/EGLNativeTypeHybris.h
 --- xbmc-master/xbmc/windowing/egl/EGLNativeTypeHybris.h	1970-01-01 10:00:00.000000000 +1000
-+++ isengard/xbmc/windowing/egl/EGLNativeTypeHybris.h	2015-06-09 13:48:16.324052544 +1000
++++ isengard/xbmc/windowing/egl/EGLNativeTypeHybris.h	2015-06-30 15:49:00.413720991 +1000
 @@ -0,0 +1,85 @@
 +#pragma once
 +
@@ -1846,8 +1836,8 @@ diff -rupN xbmc-master/xbmc/windowing/egl/EGLNativeTypeHybris.h isengard/xbmc/wi
 +  CHybrisVideoRenderer       *m_videoRenderThread;
 +};
 diff -rupN xbmc-master/xbmc/windowing/egl/EGLWrapper.cpp isengard/xbmc/windowing/egl/EGLWrapper.cpp
---- xbmc-master/xbmc/windowing/egl/EGLWrapper.cpp	2015-06-09 04:52:13.000000000 +1000
-+++ isengard/xbmc/windowing/egl/EGLWrapper.cpp	2015-06-09 14:14:30.428866460 +1000
+--- xbmc-master/xbmc/windowing/egl/EGLWrapper.cpp	2015-06-30 04:17:51.000000000 +1000
++++ isengard/xbmc/windowing/egl/EGLWrapper.cpp	2015-06-30 15:49:00.413720991 +1000
 @@ -33,6 +33,9 @@
  #if defined(TARGET_RASPBERRY_PI)
    #include "EGLNativeTypeRaspberryPI.h"
@@ -1869,8 +1859,8 @@ diff -rupN xbmc-master/xbmc/windowing/egl/EGLWrapper.cpp isengard/xbmc/windowing
        (nativeGuess = CreateEGLNativeType<CEGLNativeTypeIMX>(implementation)) ||
  #endif
 diff -rupN xbmc-master/xbmc/windowing/egl/Makefile.in isengard/xbmc/windowing/egl/Makefile.in
---- xbmc-master/xbmc/windowing/egl/Makefile.in	2015-06-09 04:52:13.000000000 +1000
-+++ isengard/xbmc/windowing/egl/Makefile.in	2015-06-09 14:15:22.022236838 +1000
+--- xbmc-master/xbmc/windowing/egl/Makefile.in	2015-06-30 04:17:51.000000000 +1000
++++ isengard/xbmc/windowing/egl/Makefile.in	2015-06-30 15:49:00.413720991 +1000
 @@ -10,6 +10,9 @@ endif
  ifeq (@USE_MMAL@,1)
  SRCS+= EGLNativeTypeRaspberryPI.cpp
